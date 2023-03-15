@@ -1,0 +1,92 @@
+---
+title: "assignment3"
+format: pdf
+editor: visual
+---
+
+### Task 1
+
+```{r}
+rm(list=ls())
+suppressPackageStartupMessages({
+library(jsonlite)
+library(tidyverse)
+library(scales)
+library(ggrepel)
+})
+```
+
+```{r}
+df <- fromJSON("https://static01.nyt.com/newsgraphics/2021/12/20/us-coronavirus-deaths-2021/ff0adde21623e111d8ce103fedecf7ffc7906264/scatter.json")
+
+```
+
+```{r}
+df <- df %>% 
+  mutate(state_name = state.abb[match(name, state.name)]) 
+  
+df[9, 7] = "D.C"
+```
+
+```{r}
+
+fig <- df %>%
+  ggplot(aes(fully_vaccinated_pct_of_pop*100, deaths_per_100k,
+             label=state_name)) + theme_bw() + 
+  geom_point(color="green", size=1.5) +
+  geom_text_repel(size=2.5) +
+  
+  labs(x= "Share of total population fully vaccinated", y="", 
+       title ="Covid-19 deaths since universal adult vaccine eligibility compared with vaccination rates", caption = "Source: New York Times database") +
+  scale_x_continuous(labels = percent_format(scale = 1),
+                     breaks = seq(45,80,5),limits = c(45,80), 
+                     expand = c(0, 0)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 20, by = 5), 
+                     limits = c(0,20),
+                     expand = c(0, 0)) +
+  
+  annotate("text", x=59,y=17, label="Lower vaccination rate, 
+           higher death rate") +
+  geom_segment(aes(x=56, y=15.5, xend=54, yend=16.5), 
+               arrow = arrow(length=unit(.2, 'cm')), lwd=.5)+
+
+  annotate("text",x=73,y=10, label="Higher vaccination rate,
+           lower death rate") + 
+  geom_segment(aes(x=70, y=8.5, xend=72, yend=7.5), 
+               arrow = arrow(length=unit(.2, 'cm')), lwd=.5) +
+  
+  theme(panel.border=element_rect(linetype=3),
+        panel.grid=element_line(linetype ="dotted")) 
+
+
+fig
+```
+
+### Task 2
+
+```{r}
+lm(deaths_per_100k ~ fully_vaccinated_pct_of_pop, data = df)
+
+# Linear model
+```
+
+```{r}
+cor(df$deaths_per_100k,df$fully_vaccinated_pct_of_pop, use = "complete.obs")
+
+# Correlation coefficient
+```
+
+```{r}
+#| warning: false
+#| message: false
+fig <- fig + geom_smooth(method = lm, se = FALSE)
+fig
+```
+
+Linear regression function: $$
+f(x) = 31.15 -36.66x
+$$
+
+By calling the lm function in R, we are fitting a linear model. The intercept is were the line would cross the y - axis if there was a 0 percent vaccination rate, that tells us there would be an average of 31.15 deaths per 100k citizens. If we divide the independent variable by 10, we get 3.666 percent, this number is useful because it tells us how many less average deaths per 100k citizens we would get if the number of vaccinations is raised by 10 percent, and since the x - axis only goes from 0.45 to 0.80 this is more relevant for us.
+
+The correlation coefficient tells us the covariance of the variables. There is an negative correlation, which means that a high value off one of the variables is likely to be found with a low value of the other. In this case the covariance of vaccinations and deaths per 100k citizen. The closer this number is too -1, the stronger the correlation is.
