@@ -1,5 +1,5 @@
 ---
-title: "Prosjektoppgave"
+title: "Prosjektoppgave task1"
 author: "31"
 format: html
 editor: visual
@@ -32,7 +32,9 @@ sample(category, 1)
 
 ```
 
-In this project assignment for the class 1005 - datavitenskap for økonomer, i have used data from the James M. Kilts Center, University of Chicago Booth School of Business. The task uses four datasets. The coustomer count file, and the store-level demographic file. These files can be downloaded from: <https://www.chicagobooth.edu/research/kilts/datasets/dominicks>. The other two files used contains data on laundry detergents (UPCs and Movements). These files can downloaded directly from the links below.
+In this project assignment for the class 1005 - datavitenskap for økonomer, i have used data from the James M. Kilts Center, University of Chicago Booth School of Business. The task uses four datasets. The coustomer count file, and the store-level demographic file. These files can be downloaded from: <https://www.chicagobooth.edu/research/kilts/datasets/dominicks>.
+
+The other two files used contains data on laundry detergents (UPCs and Movements). These files can downloaded directly from the links below.
 
 UPC file:
 
@@ -42,7 +44,11 @@ Movement file:
 
 <https://www.chicagobooth.edu/-/media/enterprise/centers/kilts/datasets/dominicks-dataset/movement_csv-files/wlnd.zip?la=en&hash=BFC61F369725363F7F8360CA7D34C1731C985BA9>
 
-Once the files are downloaded locally, u can read them by insterting the file paths in the code block under.
+Once the files are downloaded locally, u can read them by inserting the file paths in the code block under.
+
+More infomation on the data can be found in the data manual:
+
+<https://www.chicagobooth.edu/-/media/enterprise/centers/kilts/datasets/dominicks-dataset/dominicks-manual-and-codebook_kiltscenter>
 
 ```{r}
 ccount <- read_dta('ccount.dta') # Customer count file. 
@@ -177,5 +183,5 @@ df <- df %>%
 ```
 
 ```{r}
-write_csv(df, "df.csv") # Writing as csv file. 
+write_csv(df, "df.csv") # Writing final df as csv file for sales report 
 ```
