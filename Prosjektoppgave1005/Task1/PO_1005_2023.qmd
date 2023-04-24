@@ -1,0 +1,181 @@
+---
+title: "Prosjektoppgave"
+author: "31"
+format: html
+editor: visual
+---
+
+```{r}
+rm(list=ls())
+```
+
+```{r}
+# Packages for data wrangling. 
+suppressPackageStartupMessages({
+library(haven)
+library(tidyverse)
+library(lubridate)})
+```
+
+```{r}
+category <- c("Analgesics","Bath Soap","Beer","Bottled Juices","Cereals",
+              "Cheeses","Cigarettes","Cookies","Crackers","Canned Soup",
+              "Dish Detergent","Front-end-candies","Frozen Dinners","Frozen Entrees",
+              "Frozen Juices","Fabric Softeners","Grooming Products","Laundry Detergents",
+              "Oatmeal","Paper Towels","Soft Drinks","Shampoos","Snack Crackers",
+              "Soaps","Toothbrushes","Canned Tuna","Toothpastes","Bathroom Tissues")
+
+letter2number <- function(x) {utf8ToInt(x) - utf8ToInt("A") + 1L}
+seed_number <- sum(letter2number("Gustav"))
+set.seed(seed_number)
+sample(category, 1)
+
+```
+
+In this project assignment for the class 1005 - datavitenskap for økonomer, i have used data from the James M. Kilts Center, University of Chicago Booth School of Business. The task uses four datasets. The coustomer count file, and the store-level demographic file. These files can be downloaded from: <https://www.chicagobooth.edu/research/kilts/datasets/dominicks>. The other two files used contains data on laundry detergents (UPCs and Movements). These files can downloaded directly from the links below.
+
+UPC file:
+
+<https://www.chicagobooth.edu/-/media/enterprise/centers/kilts/datasets/dominicks-dataset/upc_csv-files/upclnd.csv?la=en&hash=99A99F1AF79BB754643A1610C67ABA0E4AFAFAB5>
+
+Movement file:
+
+<https://www.chicagobooth.edu/-/media/enterprise/centers/kilts/datasets/dominicks-dataset/movement_csv-files/wlnd.zip?la=en&hash=BFC61F369725363F7F8360CA7D34C1731C985BA9>
+
+Once the files are downloaded locally, u can read them by insterting the file paths in the code block under.
+
+```{r}
+ccount <- read_dta('ccount.dta') # Customer count file. 
+demo <- read_dta('demo.dta') # Store demographic file. 
+
+# Laundry detergent upc file. 
+upc_ld = read.csv('upclnd.csv',sep=',') 
+
+# Laundry detergent movement file. 
+mvm_ld = read.csv('wlnd',sep=',')
+```
+
+```{r}
+# Run this for different detergent UPCs:
+
+# unique(upc_ld$DESCRIP)
+```
+
+We can see there is a lot of different UPCs for detergents. I want to choose some brands for the data analysis. Beacuse the data is so big, i am only gonna pick three brands.
+
+```{r}
+brands <- paste(c("SURF", "WISK", "WOOLITE"), collapse = "|") # Picking brands for data analysis. 
+
+upc_ld <- upc_ld %>%
+  filter(grepl(brands,DESCRIP)) # Filtering brands. 
+
+upc_ld <- upc_ld %>%
+  mutate(BRAND = str_extract(DESCRIP, brands)) # Adding brands as column. 
+```
+
+```{r}
+#|message: false
+mvmupc <- left_join(upc_ld,mvm_ld, by=c('UPC')) # Left join by key. 
+
+# Adding sales column in dollars. 
+mvmupc <- mvmupc %>%
+  group_by(WEEK,STORE,UPC) %>% # Group by keys. 
+  mutate(SALES = PRICE*MOVE/QTY) %>% # Formula as stated in data manual. 
+  filter(SALES > 0) # Filter for sales over 0. 
+
+mvmupc <- mvmupc %>% # Relocateing columns for tidiness.
+  relocate(SALES, .before = PROFIT) %>% 
+  relocate(WEEK, .before = COM_CODE)  %>% 
+  relocate(STORE, .before = COM_CODE)
+
+mvmupc <- mvmupc %>%  # Filter for weeks in 1990
+  filter(between(WEEK,16,68))
+
+mvmupc <- mvmupc %>% # Removing some variables that i dont need.
+  select(-COM_CODE,-PRICE_HEX,-PROFIT_HEX,-NITEM)  
+
+mvmupc <- mvmupc %>% # Calculating some data i need for analysis. 
+  group_by(STORE, WEEK, BRAND) %>%
+  summarise(MOVE_SUM = sum(MOVE),
+            AVG_PROFIT = mean(PRICE),
+            SUM_PROFIT = sum(PROFIT),
+            AVG_PRICE = mean(PRICE),
+            SUM_SALES = sum(SALES))
+```
+
+```{r}
+colnames(ccount)
+```
+
+```{r}
+ccount <- na.omit(ccount) # Removing missing data. 
+
+ccount$date <- as.Date(ccount$date, "%y%m%d") # Date variable.  
+
+ccount <- ccount %>% 
+  mutate(date = as.Date(date)) %>% # Convert to date. 
+  filter(between(date, as.Date('1990-01-01'), as.Date('1990-12-31'))) %>% # Filter for year. 
+  relocate("week", .before = store) %>% # Relocate for tidiness. 
+  rename(WEEK = week) %>% # Renaming for merge. 
+  rename(STORE = store)
+```
+
+```{r}
+# Using the colnames() function to get var names. 
+
+# Aggregate by week and store
+ccount <- ccount %>%   
+  group_by(WEEK,STORE) %>% 
+  summarise_at(.vars = c("grocery","dairy","frozen","bottle","mvpclub","groccoup","meat","meatfroz","meatcoup","fish","fishcoup", "promo","promcoup", "produce",  "bulk","saladbar","prodcoup","bulkcoup","salcoup","floral","florcoup", "deli", "deliself", "deliexpr","convfood", "cheese","delicoup","bakery" , "pharmacy", "pharcoup", "gm" , "jewelry", "cosmetic","haba","gmcoup",   "camera" ,  "photofin" ,"video"  , "videoren", "vidcoup" , "beer" , "wine" ,"spirits" , "miscscp" , "mancoup" , "custcoun", "ftgchin" , "ftgccoup","ftgital" , "ftgicoup" ,"daircoup" ,"frozcoup", "habacoup" ,"photcoup" ,"cosmcoup", "ssdelicp" ,"bakcoup" , "liqcoup"), .funs = sum) 
+```
+
+For a better overview i have printed the number of store observations in both the merged movementfile and the aggregated ccount file.
+
+```{r}
+unique(mvmupc$STORE)
+```
+
+```{r}
+unique(ccount$STORE)
+```
+
+We can now see that the ccount includes more data on stores. If we merge the data there will be some missing values on store observations.
+
+```{r}
+ccount_mvmupc <- left_join(mvmupc, ccount, by= c("WEEK","STORE"))
+
+ccount_mvmupc <- ccount_mvmupc %>% # Removing duplicated rows (if any).  
+  distinct()
+```
+
+```{r}
+demo <- demo %>% # Removing column with missing values. 
+  select(-gini)
+
+demo <- demo %>%  # Renaming for merge. 
+  rename(STORE = store) 
+
+sum(is.na(demo))
+
+# We can see there is a lot of missing values in the demo data. We have to keep that in mind for later analysis. 
+```
+
+```{r}
+df <- left_join(ccount_mvmupc,demo,by=c('STORE')) # Left join by key.
+
+# Weeks start at 16, to make variable start at 1 i substract by 15.
+df <- df %>% 
+  mutate(WEEK = WEEK - 15)
+
+df <- df %>% 
+  distinct() # Removing duplicated rows (if any). 
+
+df <- df[, 1:55]
+
+df <- df %>%
+  select(-ftgchin,-pharmacy) # Removing column that contains 0 observations (Food to go Chinese) and pharmacy.
+```
+
+```{r}
+write_csv(df, "df.csv") # Writing as csv file. 
+```
