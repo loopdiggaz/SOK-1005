@@ -1,0 +1,219 @@
+---
+title: "Prosjektoppgave task1"
+author: "31"
+format: html
+editor: visual
+---
+
+```{r}
+rm(list=ls())
+```
+
+```{r}
+# Packages for data wrangling. 
+suppressPackageStartupMessages({
+library(haven)
+library(tidyverse)
+library(lubridate)})
+```
+
+```{r}
+category <- c("Analgesics","Bath Soap","Beer","Bottled Juices","Cereals",
+              "Cheeses","Cigarettes","Cookies","Crackers","Canned Soup",
+              "Dish Detergent","Front-end-candies","Frozen Dinners","Frozen Entrees",
+              "Frozen Juices","Fabric Softeners","Grooming Products","Laundry Detergents",
+              "Oatmeal","Paper Towels","Soft Drinks","Shampoos","Snack Crackers",
+              "Soaps","Toothbrushes","Canned Tuna","Toothpastes","Bathroom Tissues")
+
+letter2number <- function(x) {utf8ToInt(x) - utf8ToInt("A") + 1L}
+seed_number <- sum(letter2number("Gustav"))
+set.seed(seed_number)
+sample(category, 1)
+
+```
+
+For the project assignment in the class "1005 - Datavitenskap for økonomer," i have utilized data from the James M. Kilts Center at the University of Chicago Booth School of Business. The project involves four datasets.
+
+The customer count file and the store-level demographic file can be downloaded from the following link: [**Customer Count and Store-Level Demographic Files**](https://www.chicagobooth.edu/research/kilts/datasets/dominicks).
+
+Additionally, the laundry detergent data, including UPCs and Movement information, can be directly downloaded from the following links:
+
+UPC file: [**UPCLND.CSV**](https://www.chicagobooth.edu/-/media/enterprise/centers/kilts/datasets/dominicks-dataset/upc_csv-files/upclnd.csv?la=en&hash=99A99F1AF79BB754643A1610C67ABA0E4AFAFAB5)
+
+Movement file: [**WLND.ZIP**](https://www.chicagobooth.edu/-/media/enterprise/centers/kilts/datasets/dominicks-dataset/movement_csv-files/wlnd.zip?la=en&hash=BFC61F369725363F7F8360CA7D34C1731C985BA9)
+
+Once you have downloaded the files to your local system, you can read them by inserting the file paths into the code block below.
+
+For more detailed information about the data, including a data manual, please refer to the following link: [**Dominicks Manual and Codebook**](https://www.chicagobooth.edu/-/media/enterprise/centers/kilts/datasets/dominicks-dataset/dominicks-manual-and-codebook_kiltscenter)
+
+```{r}
+# Customer count file. 
+ccount <- read_dta("C://Users/gusta/OneDrive/Skrivebord/ccount.dta") 
+# Store demographic file. 
+demo <- read_dta("C://Users/gusta/OneDrive/Skrivebord/demo.dta") 
+# Laundry detergent upc file. 
+upc_ld = read.csv("C://Users/gusta/OneDrive/Skrivebord/upclnd.csv",sep=',') 
+# Laundry detergent movement file. 
+mvm_ld = read.csv("C://Users/gusta/OneDrive/Skrivebord/wlnd.csv",sep=',')
+```
+
+```{r}
+# Run this for different detergent UPCs:
+#unique(upc_ld$DESCRIP)
+```
+
+In the code block below, I have merged all the different UPCs for detergents into a single brand category. Additionally, I have applied a filter to remove detergent products that are under 60 ounces in size, which improves the code's runtime significantly.
+
+```{r}
+brands <- paste(c("SURF", "WISK", "SOLO", "ERA" , "TIDE"), collapse = "|") # Picking brands for data analysis. 
+
+upc_ld <- upc_ld %>%
+  filter(grepl(brands,DESCRIP)) %>%  # Filter for the brands. 
+  mutate(BRAND = str_extract(DESCRIP, brands)) %>%  # Adding brands as column.
+  separate(col = SIZE, into = c("SIZE","DEL"), sep = " ") %>%  # Separating size column. 
+  filter(SIZE > 60) # Filter for size of detergent products. 
+```
+
+Some key info on the data:
+
+1\. UPC: This is the key to use while merging with upc file.
+
+2\. Price, Quantity and Movement: DFF will sometimes bundle products (E.g., 3 cans of tomato soup for \$2). In such occasion, the 'qty' variable will indicate the size of the bundle (E.g., 3), the price will reflect the total price of the bundle (E.g., \$2), but move will reflect the number of actual item sold, not the number of bundles.
+
+Hence, to compute total dollar sales, one must do the following calculation: Sales = Price \* Move / Qty.
+
+3\. Profit: This variable indicates the gross margin in percent that DFF makes on the sale of the UPC. A profit of 25.3 means that DFF makes 25.3 cents on the dollar for each item sold. This yields a cost of good sold of 74.7 cents.
+
+4\. Sales: This variable indicates whether the product was sold on a promotion that week. A code of 'B' indicates a Bonus Buy, 'C' indicates a Coupon, 'S' indicate a simple price reduction. Unfortunately, this variable is not set by DFF on consistent basis (I.e., if the variable is set it indicates a promotion, if it is not set, there might still be a promotion that week).
+
+5\. OK: This is a flag set by us to indicate that the data for that week are suspect. We do not use flagged data in our analysis."
+
+Source: Dominick's Data Manual.
+
+```{r}
+#|message: false
+mvmupc <- left_join(upc_ld,mvm_ld, by=c('UPC')) # Left join by key. 
+
+mvmupc <- mvmupc %>% 
+  filter(OK > 0) # Removing trash data. 1 is for valid data 0 is for trash (see data manual). 
+
+# Adding sales column in dollars. 
+mvmupc <- mvmupc %>%
+  group_by(WEEK,STORE,UPC) %>% # Group by keys. 
+  mutate(SALES = PRICE*MOVE/QTY) %>% # Formula as stated in data manual. 
+  filter(SALES > 0) # Filter for sales over 0. 
+
+mvmupc <- mvmupc %>% # Relocating columns for tidiness.
+  relocate(SALES, .before = PROFIT) %>% 
+  relocate(WEEK, .before = COM_CODE)  %>% 
+  relocate(STORE, .before = COM_CODE)
+
+mvmupc <- mvmupc %>%  # Filter for weeks in 1990
+  filter(between(WEEK,16,68))
+
+mvmupc <- mvmupc %>% # Removing some columns i dont need.
+  select(-PRICE_HEX,-PROFIT_HEX,-OK,-COM_CODE,-DEL,-NITEM,-CASE)  
+```
+
+```{r}
+#|message: false
+mvmupc <- mvmupc %>% # Calculating some data i need for analysis. 
+  group_by(STORE, WEEK, BRAND) %>% # Group by keys. 
+  summarise(MOVE_SUM = sum(MOVE), # The sum of units sold per brand. 
+            AVG_PROFIT = (mean(PROFIT)/100), # The average profit in percent of dollar per unit sold. 
+            AVG_PRICE = mean(PRICE), # The average price of the brands. 
+            SUM_SALES = sum(SALES)) # The sum of sales in dollars. 
+```
+
+```{r}
+colnames(ccount)
+```
+
+```{r}
+ccount <- na.omit(ccount) # Removing missing data. 
+
+ccount$date <- as.Date(ccount$date, "%y%m%d") # Date variable.  
+
+ccount <- ccount %>% 
+  mutate(date = as.Date(date)) %>% # Convert to date. 
+  filter(between(date, as.Date('1990-01-01'), as.Date('1990-12-31'))) %>% # Filter for year. 
+  relocate("week", .before = store) %>% # Relocate for tidiness. 
+  rename(WEEK = week) %>% # Renaming for merge. 
+  rename(STORE = store)
+```
+
+```{r}
+# Using the colnames() function to get var names. 
+
+# Aggregate by week and store
+ccount <- ccount %>%   
+  group_by(WEEK,STORE) %>% 
+  summarise_at(.vars = c("grocery","dairy","frozen","bottle","mvpclub","groccoup","meat","meatfroz","meatcoup","fish","fishcoup", "promo","promcoup", "produce",  "bulk","saladbar","prodcoup","bulkcoup","salcoup","floral","florcoup", "deli", "deliself", "deliexpr","convfood", "cheese","delicoup","bakery" , "pharmacy", "pharcoup", "gm" , "jewelry", "cosmetic","haba","gmcoup",   "camera" ,  "photofin" ,"video"  , "videoren", "vidcoup" , "beer" , "wine" ,"spirits" , "miscscp" , "mancoup" , "custcoun", "ftgchin" , "ftgccoup","ftgital" , "ftgicoup" ,"daircoup" ,"frozcoup", "habacoup" ,"photcoup" ,"cosmcoup", "ssdelicp" ,"bakcoup" , "liqcoup"), .funs = sum) 
+```
+
+For a better overview i have printed the number of store observations in both the merged movement file and the aggregated ccount file.
+
+```{r}
+unique(mvmupc$STORE)
+```
+
+```{r}
+unique(ccount$STORE)
+```
+
+It is evident that the ccount file contains more data on stores compared to the merged movement file. Therefore, when i merge the data from these files, there will be some missing values in terms of store observations. This is expected and can occur when there are discrepancies or differences in the available data between the two files.
+
+```{r}
+ccount_mvmupc <- left_join(mvmupc, ccount, by= c("WEEK","STORE"))
+
+ccount_mvmupc <- ccount_mvmupc %>% # Removing duplicated rows (if any).  
+  distinct()
+```
+
+```{r}
+demo <- demo %>% # Removing column with missing values. 
+  select(-gini)
+
+demo <- demo %>%  # Renaming for merge. 
+  rename(STORE = store) 
+
+sum(is.na(demo))
+
+demo <- demo %>% 
+  select(-name,-zip,-zone,-lat,-long,-weekvol)
+
+# We can see there is a lot of missing values in the demo data.
+```
+
+There are missing values present within the dataset, potentially indicating incomplete or unavailable information for certain variables.
+
+```{r}
+dfndefined <- left_join(ccount_mvmupc,demo,by=c('STORE')) # Left join by key.
+
+df <- df %>% # Relocateing for tidiness. 
+  relocate(city, .before = BRAND) %>% 
+  relocate(age9, .before = grocery) %>% 
+  relocate(age60, .before = grocery) %>% 
+  relocate(hsizeavg, .before = grocery) %>% 
+  relocate(unemp, .before = grocery) %>% 
+  relocate(wrkch, .before = grocery) 
+  
+# Weeks start at 16, to make variable start at 1 i substract by 15.
+
+df <- df %>% 
+  mutate(WEEK = WEEK - 15)
+
+df <- df %>% 
+  distinct() # Removing duplicated rows (if any). 
+
+df <- df[, 1:115] # Picking columns i need. 
+
+df <- df[,-29:-59] # Deleting columns i dont need. 
+df <- df[,-29:-43]
+```
+
+```{r}
+write_csv(df, "df.csv") # Writing final df as csv file for sales report. 
+```
+
+I have now incorporated multiple datasets from the James M. Kilts Center to create a finalized dataframe that will serve as the foundation for my upcoming sales report.
