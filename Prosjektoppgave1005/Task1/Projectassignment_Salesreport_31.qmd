@@ -1,0 +1,231 @@
+---
+title: "Salesreport"
+author: "31"
+format: html
+echo: false
+warning: false
+messages: false
+---
+
+```{r}
+rm(list = ls())
+```
+
+```{r}
+suppressPackageStartupMessages({
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(wktmo)
+library(plotly)
+})
+```
+
+```{r}
+df = read.csv('https://raw.githubusercontent.com/loopdiggaz/SOK1005/main/Prosjektoppgave1005/Task1/df_final.csv',sep=',')
+```
+
+## Task 2
+
+A weekly sales report should include an overview of the sale results for the week. Here are some points that the report should include:
+
+1.  The total sales of the week. This can be broken down by each laundry detergent brand.
+2.  The profits of the week. Helpful when identifying which detergent brands are generating the most income, and also for comparison with previous and future sales.
+3.  The profit margins of the week. Too maximize the income we want too find the most profitable detergent brands. Calculating the profit margins will tell us which brands have a "healthy" margin.
+4.  Sales trends. Try to identify if there are any trends or patterns.
+
+In the analysis i will look at the Dominick store number 2, which is located in River Forest.
+
+```{r}
+riverforest <- df %>% 
+  filter(STORE == 2)
+
+fig <- riverforest %>%
+  ggplot() + geom_col(aes(x=WEEK,y=SUM_SALES,fill= BRAND)) + 
+  theme_minimal() + ylab("Units sold") + xlab("Figure 1.1") + labs(title = "Units sold by brand - River forest (1990)") + theme(axis.text.x=element_text(angle = 30,hjust = 1, size = 8))
+
+ggplotly(fig)
+```
+
+Figure 1.1 is a breakdown of units sold across different brands. It is evident that Tide is the most popular brand, surpassing other brands by a significant margin. On average, Tide sells nearly three times as many units as Solo.
+
+On the other hand, Surf experiences the lowest sales among the detergents, with only 22 units sold in the first week. This figure is considerably lower compared to Tide, which recorded over 100 sales during the same week.
+
+The peaks in the graph indicate periods when certain brands were offered at discounted prices. For instance, in week 20, Tide was available at a discounted rate. A clear trend can be observed whereby detergents that were discounted outperformed other brands in terms of sales.
+
+```{r}
+riverforest %>%
+  filter(WEEK == "1") %>% 
+  ggplot() + geom_col(aes(x=reorder(BRAND,-AVG_PROFIT),y=AVG_PROFIT)) + 
+  theme_minimal() + ylab("") + xlab("Brands") + labs(title = "Gross Margin Per Unit for Week 1", subtitle = "- River Forest (1990)", caption = "Figure 1.2") + theme(axis.text.x=element_text(angle = 30,hjust = 1, size = 8))
+```
+
+Figure 1.2 illustrates the average profits per brand during week 1. It is crucial to note that the profits are represented as a percentage of the dollar. Therefore, on average, Tide earned nearly 20 cents for each item sold in week 1, resulting in a cost of approximately 80 cents. The rationale for utilizing average profit instead of the total sum is due to the unequal quantities of products sold per brand. If the profits were summed, the values would not be suitable for comparison purposes.
+
+During week 1, Surf demonstrates the highest profits; however, it also has the highest price. This information should be taken into account. To provide a sales recommendation, it would be beneficial to calculate a profit margin of some sort. By doing so, we can ascertain the profit in terms of revenue rather than just a monetary value.
+
+```{r}
+# I want to find the profit margins. 
+riverforest <- riverforest %>% 
+  group_by(BRAND,STORE,WEEK) %>% 
+  mutate(PROFIT_MARGIN = AVG_PROFIT*SUM_SALES/SUM_SALES)
+
+riverforest <- riverforest %>% # Relocating for tidiness. 
+  relocate(PROFIT_MARGIN, .before = age9)
+
+riverforest %>% 
+  ggplot + geom_col(aes(x=reorder(BRAND,-PROFIT_MARGIN),y=PROFIT_MARGIN)) + theme_minimal() + labs(title = "Profit margin", subtitle = "- River Forest (1990)", caption = "Figure 1.3") + ylab("") + xlab("Brands")
+```
+
+Figure 1.3 shows the profit margins, revealing a similarity to the gross margins observed in week 1. Notably, all brands show similar performance levels. In the realm of financial theory, a profit margin of around 10% is generally regarded as good, indicating that all brands are performing reasonably well.
+
+If I were to provide recommendations for sales strategies, I would suggest focusing on the brands that demonstrate strong profit margins, namely Surf and Solo. These brands are showing strong results.
+
+Despite Tide being the most popular brand, its gross margin is relatively low. Considering this, it may be worth exploring the possibility of increasing the price of Tide detergents. However, it is important to note that the impact of price changes on demand, as measured by price elasticity, is unknown in this context.
+
+## Task 3
+
+A monthly sales report should include an overview of the sales results of the month. Here are some points that the report should include:
+
+1.  The total sales of the month. This can be broken down by each laundry detergent brand.
+2.  The monthly profits. Helpful when identifying which detergent brands are generating the most income, and also for comparison with previous and future sales.
+3.  Sales trends. Try to identify if there are any trends or patterns.
+4.  Sales by location. Identify if there are any differences in sales across the stores.
+
+```{r}
+df <- df %>% 
+  mutate(DATE = parse_date_time(paste(1990, df$WEEK, 1, sep="-"),'Y-W-w')) 
+
+df$MONTH <- format(as.Date(df$DATE, format="%Y-%m-%d"),"%m")
+
+df_monthly <- df %>% 
+  group_by(STORE,BRAND,city,MONTH) %>% 
+  summarize(TOT_MOVE = sum(MOVE_SUM),
+            TOT_SALE = sum(SUM_SALES),
+            AVG_PRICE = mean(AVG_PRICE),
+            AVG_PROFIT = mean(AVG_PROFIT),
+            hsizeavg = mean(hsizeavg),
+            hhlarge = mean(hhlarge),
+            wrkch = mean(wrkch),
+            gm = sum(gm),
+            gmcoup = sum(gmcoup),
+            custcoun = sum(custcoun)) 
+
+# Beacuse we only got the average profit the columns under are rough estimates. 
+df_monthly <- df_monthly %>% 
+  group_by(BRAND,STORE,city,MONTH) %>% 
+  mutate(PROFITS = TOT_SALE*AVG_PROFIT) %>%
+  mutate(PROFIT_MARGIN = AVG_PROFIT*TOT_SALE/TOT_SALE)
+```
+
+```{r}
+df_monthly %>%
+  ggplot(aes(x=reorder(BRAND,-PROFITS),y=PROFITS)) + geom_col() + ylim(0,20000) + theme_minimal() + theme(axis.text.x=element_text(angle = 30,hjust = 1, size = 6)) + facet_wrap(~MONTH) + labs(title = 'Profit per month (1990)', caption = 'Figure 2.1') + xlab("Brands") + ylab("")
+```
+
+Figure 2.1 provides a visual representation of monthly profits, which serves as a valuable resource for identifying patterns. It is evident that detergent sales experience a notable increase during the months of summer and around Christmas time. This can be attributed to a surge in demand, presumably associated with the holiday season
+
+Figure 2.2 shows the sales in dollars by store in the ten thousands. Store number 80 has the highest sales in terms of dollar amount. The store is located in Arlington Heights. Arlington Heights is a upper class community, with the cost of living being 36% higher on average than other places in America.
+
+```{r}
+fig2 <- df_monthly %>% 
+  group_by(STORE) %>% 
+  summarize(TOT_SALE_year = sum(TOT_SALE)) %>% 
+  ggplot(aes(x=reorder(STORE,-TOT_SALE_year), y= TOT_SALE_year/10)) + geom_col(width = 0.5) + theme_minimal() + theme(axis.text.x=element_text(angle = 90,hjust = 1, size = 8)) + labs(title = "Sum of sales in dollar", caption = "Figure 2.2") + xlab("Figure 2.2") + ylab("Sum sales")
+
+ggplotly(fig2)
+```
+
+## Task 4
+
+```{r}
+# The store specfic data is messy because of duplicated rows of some variables. Therefore, i made some new dataframes: 
+# The first two dataframes are in a weekly time frame. 
+store_sales <- df %>% 
+  select(STORE,city,BRAND,WEEK,SUM_SALES,MOVE_SUM) %>% 
+  group_by(STORE,city,WEEK) %>% 
+  summarize(SUM_SALES = sum(SUM_SALES),
+            SUM_MOVE = sum(MOVE_SUM)) %>% 
+  distinct()
+
+storedemo_coups <- df %>% 
+  select(STORE,city,WEEK,bulk,gm,gmcoup,custcoun) %>% 
+  mutate(gmcoup = gmcoup*-1) %>% 
+  distinct()
+# The reason for making two datasets is that the detergents are categorized by brand, and need too be summarized for a equal amount of observations. 
+
+# The store specific data is a yearl observations,  
+storedemo_stats <- df %>% 
+  select(STORE,city,hsizeavg,hhlarge,wrkch,hh3plus,income,single,nwrkch5,shopindx) %>%  
+  distinct()
+
+# therefore i want too convert the first two dataframes into yearly observations aswell.  
+
+# First i merge the datasets,
+df_corr <- store_sales %>% 
+  left_join(storedemo_coups, by = c("STORE","WEEK","city"))
+
+# then i convert to yearly, by summarising all the weeks. 
+df_corr <- df_corr %>% 
+  group_by(STORE,city) %>% 
+  summarize(SUM_SALES = sum(SUM_SALES),
+            SUM_MOVE = sum(SUM_MOVE),
+            SUM_bulk = sum(bulk),
+            SUM_gm = sum(gm),
+            SUM_gmcoup = sum(gmcoup),
+            SUM_custcoun = sum(custcoun))
+
+# This dataftrame contains everything i need for a correlation analysis.
+df_corr <- df_corr %>% 
+  left_join(storedemo_stats,by = c("STORE","city"))
+```
+
+Analysing the specific data related to the demographics can provide valuable insights. By looking into the underlying data, we may uncover factors or patterns that contribute to certain locations being superior in performance.
+
+Considering the substantial sales volume in some cities, it becomes worthwhile to explore the potential benefits of opening another store. If the city exhibits high sales figures but a low number of existing stores, the company stands to gain from establishing a new store to cater to the demand.
+
+```{r}
+cor.test(df_corr$SUM_SALES,df_corr$SUM_custcoun)
+```
+
+```{r}
+df_corr %>% 
+  ggplot(aes(SUM_custcoun,SUM_SALES/10)) + geom_point() + theme_minimal() + geom_smooth(method = "lm") + labs(title = "Sales of laundry detergents vs Customer count",caption="Figure 3.1")+ ylab("Sales/10") + xlab("custcoun") 
+```
+
+There is a strong correlation between sales and customer count (figure 3.1), which supports the idea that opening a new store in an area with a large potential customer base would be beneficial.
+
+Additionally, when considering the shop index, which measures the ability to shop (car and single family house), there is little to no correlation between the shop index and sales. This suggests that the demand for laundry detergents is not significantly influenced by the shop index. Similarly, there is also little to no correlation between sales and the log median income. Based on these findings, it is unlikely that the company would see significant gains from opening a store in a location with a high shop index or high log median income.
+
+```{r}
+cor.test(df_corr$SUM_SALES,df_corr$shopindx)
+```
+
+```{r}
+cor.test(df_corr$SUM_SALES,df_corr$income)
+```
+
+```{r}
+df_corr %>% 
+  ggplot(aes(hsizeavg,SUM_SALES/10)) + geom_point() + theme_minimal() + geom_smooth(method = "lm") + labs(title = "Sales of laundry detergents vs Average household size",caption="Figure 3.2")+ ylab("Sales/10") 
+```
+
+```{r}
+cor.test(df_corr$SUM_SALES,df_corr$hsizeavg)
+```
+
+The correlation test reveals that there is a low correlation between the average household size and the sales of laundry detergents (figure 3.2). This suggests that the size of households does not have a significant impact on the demand for laundry detergents.
+
+This finding challenges the assumption that areas with larger households, which typically have more laundry to do, would purchase a greater quantity of laundry detergents. It indicates that the purchasing behavior for laundry detergents is not solely determined by the number of individuals of the household.
+
+Possible explanations for this low correlation could include various factors. It could be that smaller households are using laundry detergents more frequently. Additionally, individual preferences, lifestyle choices, or variations in laundry habits within households might play a more role in determining detergent sales. The significance of household size in determining laundry detergent sales may also be diminished by the inherent importance of laundry detergents as essential merchandise. Regardless of household size, laundry detergents remain a necessity for maintaining cleanliness and hygiene.
+
+Based on the findings in task 4, it is suggested that the company should avoid targeting locations with larger households or with a high log median income. On the other hand, the company would benefit from opening a store in an area where the potential customer count is high, and should focus solely on this.
+
+## Sources
+
+Data from James M. Kilts Center at the University of Chicago Booth School of Business.
+
+Task 1 contains references to the data sources where the links can be found.
+
+GitHub repository: <https://github.com/loopdiggaz/SOK1005>
